@@ -1,0 +1,27 @@
+# 專案套件與虛擬環境
+__pycache__/
+*.py[cod]
+*$py.class
+env/
+venv/
+.env
+
+# C++ 編譯輸出檔與暫存
+*.pyd
+*.so
+*.dll
+*.obj
+*.lib
+*.exp
+core/build/
+core/temp/
+
+# IDE 與編輯器設定
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# 模擬器錄影與實驗數據 (如果檔案過大可以忽略)
+core/testbench/game_replay.json
+scratch/
