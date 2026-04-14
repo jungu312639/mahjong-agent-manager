@@ -11,26 +11,28 @@ from mcp.tester import run_mahjong_simulation
 # 建立獨立的大腦實體
 llm = ChatGoogleGenerativeAI(model=LLM_MODEL_NAME, temperature=LLM_TEMPERATURE)
 
+from mcp.tools_memory import tool_retrieve_context, tool_commit_experience
+
 # ==============================================================
 # 1. 總工程師 (Strategic Agent)
-# 擁有工具: 只能讀文檔，寫失敗筆記 (lesson learned)
+# 擁有工具: 只能透過 ChromaDB 提取歷史理論，寫入失敗修正計畫。
 # ==============================================================
-strategic_tools = [read_cpp_code, write_cpp_code] 
-strategic_agent = create_react_agent(llm, tools=strategic_tools, state_modifier=SYSTEM_PROMPT_STRATEGIC)
+strategic_tools = [tool_retrieve_context, tool_commit_experience] 
+strategic_agent = create_react_agent(llm, tools=strategic_tools, prompt=SYSTEM_PROMPT_STRATEGIC)
 
 # ==============================================================
 # 2. 軟體工程師 (Coding Agent)
 # 擁有工具: 負責動手改寫 tactics.cpp 與 score_weights.h
 # ==============================================================
 coding_tools = [read_cpp_code, write_cpp_code]
-coding_agent = create_react_agent(llm, tools=coding_tools, state_modifier=SYSTEM_PROMPT_CODING)
+coding_agent = create_react_agent(llm, tools=coding_tools, prompt=SYSTEM_PROMPT_CODING)
 
 # ==============================================================
 # 3. 測試工程師 (QA Agent)
 # 擁有工具: 完全摸不到檔案讀寫權限，只會編譯跟按壓測試按鈕
 # ==============================================================
 qa_tools = [compile_and_run_cpp, run_mahjong_simulation]
-qa_agent = create_react_agent(llm, tools=qa_tools, state_modifier=SYSTEM_PROMPT_QA)
+qa_agent = create_react_agent(llm, tools=qa_tools, prompt=SYSTEM_PROMPT_QA)
 
 # ==============================================================
 # Node Wrapper (將 Agent 與大迴圈 State 銜接的橋樑)

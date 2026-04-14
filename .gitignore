@@ -4,6 +4,7 @@ __pycache__/
 *$py.class
 env/
 venv/
+.venv/
 .env
 
 # C++ 編譯輸出檔與暫存
@@ -13,8 +14,18 @@ venv/
 *.obj
 *.lib
 *.exp
+*.exe
 core/build/
 core/temp/
+
+# 前端網頁開發物
+web/frontend/node_modules/
+web/frontend/dist/
+dist/
+
+# 向量資料庫與大腦記憶 (建議忽略實驗數據)
+data/
+docs/lesson_learned/*.md
 
 # IDE 與編輯器設定
 .vscode/
@@ -22,6 +33,6 @@ core/temp/
 *.swp
 .DS_Store
 
-# 模擬器錄影與實驗數據 (如果檔案過大可以忽略)
+# 模擬器錄影與實驗數據
 core/testbench/game_replay.json
 scratch/
