@@ -64,9 +64,9 @@ akagi-autonomous-framework/ (Root)
   - [x] 將舊散落的檔案整合成上述 `core`, `mcp`, `brain` 目錄。
   - [x] 開發 `core/include/score_weights.h`。
   - [x] 開發 `core/sandbox/tactics.cpp`。
-- [ ] **Phase 2: Multi-Agent 協作網建立**
-  - [ ] 使用 LangGraph 實作 Strategic, Coding, QA Agent 三方會議迴圈。
-  - [ ] 讓各 Agent 能夠自主呼叫專屬 MCP 工具 (如 QA 負責呼叫 `tester.py`)。
+- [x] **Phase 2: Multi-Agent 協作網建立**
+  - [x] 使用 LangGraph 實作 Strategic, Coding, QA Agent 三方會議迴圈。
+  - [x] 讓各 Agent 能夠自主呼叫專屬 MCP 工具 (如 QA 負責呼叫 `tester.py`)。
 - [ ] **Phase 3: RAG 動態長期記憶整合**
   - [ ] 建立 `docs/lesson_learned/` 動態寫入機制。
   - [ ] 讓 Strategic Agent 在每次優化前檢索歷史教訓，展現動態適應能力。

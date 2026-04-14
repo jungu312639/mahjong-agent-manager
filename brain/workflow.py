@@ -1,48 +1,73 @@
-from langgraph.graph import StateGraph, END
+from typing import Literal
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langgraph.graph import StateGraph, START, END
+from pydantic import BaseModel
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langgraph.prebuilt import ToolNode
 
-from .state import GraphState
-from tools import agent_tools
+from brain.state import GraphState
+from brain.agent_nodes import strategic_node, coding_node, qa_node
+from brain.prompts import SYSTEM_PROMPT_SUPERVISOR
 from config import LLM_MODEL_NAME, LLM_TEMPERATURE
 
-# 1. 初始化模型並綁定工具
+# ==========================================
+# 1. 架構定義與 Supervisor 路由器設定
+# ==========================================
+members = ["Strategic", "Coding", "QA"]
+options = ["FINISH"] + members
+
+class RouteResponse(BaseModel):
+    # 強制 LLM 丟出的 JSON 的 next 欄位只能出現這四種字串之一
+    next: Literal["FINISH", "Strategic", "Coding", "QA"]
+
 llm = ChatGoogleGenerativeAI(model=LLM_MODEL_NAME, temperature=LLM_TEMPERATURE)
-llm_with_tools = llm.bind_tools(agent_tools)
 
-# 2. 定義節點 (Node)
-def chatbot_node(state: GraphState):
-    """大腦節點，負責推理並決定要呼叫什麼工具，或者回覆人類"""
-    response = llm_with_tools.invoke(state["messages"])
-    return {"messages": [response]}
+# 設計主管專屬的 Prompt，把對話跟清單交給它做選擇
+prompt = ChatPromptTemplate.from_messages(
+    [
+        ("system", SYSTEM_PROMPT_SUPERVISOR),
+        MessagesPlaceholder(variable_name="messages"),
+        (
+            "system",
+            "分析上述所有團隊成員的回報。\n"
+            "現在控制權正在你手上，請決定下一棒應該呼叫誰？\n"
+            "選擇清單: {options}"
+        ),
+    ]
+).partial(options=str(options))
 
-# 工具節點：當大腦要求執行讀寫檔案、編譯時，由這個節點執行
-tool_node = ToolNode(agent_tools)
+# 綁定 Pydantic 結構強制輸出
+supervisor_chain = prompt | llm.with_structured_output(RouteResponse)
 
-# 3. 定義條件流向 (Conditional Edge)
-def should_continue(state: GraphState):
-    """判斷剛剛模型是否回傳了工具呼叫 (Tool Calls)。如果有，就走向工具節點，否則就結束迴圈等待人類輸入。"""
-    messages = state["messages"]
-    last_message = messages[-1]
-    if hasattr(last_message, "tool_calls") and last_message.tool_calls:
-        return "tools"
-    return END
+def supervisor_node(state: GraphState):
+    routing_decision = supervisor_chain.invoke(state)
+    print(f"\n[🔄 路由器] Supervisor 統籌決策: 將控制權轉交給 -> {routing_decision.next}")
+    return {"next": routing_decision.next}
 
-# 4. 建構有向圖 (Graph)
-def build_graph():
-    workflow = StateGraph(GraphState)
-    
-    # 新增節點
-    workflow.add_node("agent", chatbot_node)
-    workflow.add_node("tools", tool_node)
-    
-    # 設定起點與連接
-    workflow.set_entry_point("agent")
-    workflow.add_conditional_edges("agent", should_continue, {"tools": "tools", END: END})
-    workflow.add_edge("tools", "agent")
-    
-    # 返回編譯後的應用程式
-    return workflow.compile()
+# ==========================================
+# 2. 畫圖 (建構 Multi-Agent StateGraph)
+# ==========================================
+workflow = StateGraph(GraphState)
 
-# 將對外開放的編譯實體直接儲存供 main.py 匯入
-app = build_graph()
+# 註冊所有部門 (Nodes)
+workflow.add_node("Supervisor", supervisor_node)
+workflow.add_node("Strategic", strategic_node)
+workflow.add_node("Coding", coding_node)
+workflow.add_node("QA", qa_node)
+
+# 每當任何一個工程師完成他的任務 (例如 QA 測完，或是 Coding 寫完程式)
+# 控制權「強制」拉回給 Supervisor 讓主管裁決下一步
+for member in members:
+    workflow.add_edge(member, "Supervisor")
+
+# 主管(Supervisor)節點的分支邏輯 (Conditional Edges)
+# 根據 Supervisor JSON 的 next 屬性進行物理分發
+conditional_map = {k: k for k in members}
+conditional_map["FINISH"] = END
+
+workflow.add_conditional_edges("Supervisor", lambda state: state["next"], conditional_map)
+
+# 設定起點
+workflow.add_edge(START, "Supervisor")
+
+# 編譯整張地圖成為實體
+app = workflow.compile()

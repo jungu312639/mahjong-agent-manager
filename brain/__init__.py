@@ -1,1 +1,1 @@
-from .graph import app
+from .workflow import app
