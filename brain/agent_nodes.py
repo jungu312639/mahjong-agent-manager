@@ -1,61 +1,79 @@
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langgraph.prebuilt import create_react_agent
-from langchain_core.messages import HumanMessage
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain_core.messages import HumanMessage, AIMessage
 
 from config import LLM_MODEL_NAME, LLM_TEMPERATURE
 from brain.prompts import SYSTEM_PROMPT_STRATEGIC, SYSTEM_PROMPT_CODING, SYSTEM_PROMPT_QA
-from mcp.file_ops import read_cpp_code, write_cpp_code
-from mcp.builder import compile_and_run_cpp
+from mcp.file_ops import read_cpp_code, write_cpp_code, edit_code_segment
+from mcp.builder import compile_and_run_cpp, build_pyd_module
 from mcp.tester import run_mahjong_simulation
 
 # 建立獨立的大腦實體
 llm = ChatGoogleGenerativeAI(model=LLM_MODEL_NAME, temperature=LLM_TEMPERATURE)
 
-from mcp.tools_memory import tool_retrieve_context, tool_commit_experience
+from mcp import agent_tools
+
+# 建立具備工具調用語義的大腦實體
+llm_with_tools = llm.bind_tools(agent_tools)
 
 # ==============================================================
 # 1. 總工程師 (Strategic Agent)
-# 擁有工具: 只能透過 ChromaDB 提取歷史理論，寫入失敗修正計畫。
 # ==============================================================
-strategic_tools = [tool_retrieve_context, tool_commit_experience] 
-strategic_agent = create_react_agent(llm, tools=strategic_tools, prompt=SYSTEM_PROMPT_STRATEGIC)
+# 現在這些 Agent 只是單純的思考者，不再負責內部的工具迴圈
+async def strategic_agent(state):
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", SYSTEM_PROMPT_STRATEGIC),
+        MessagesPlaceholder(variable_name="messages"),
+    ])
+    chain = prompt | llm_with_tools
+    return await chain.ainvoke(state)
 
 # ==============================================================
 # 2. 軟體工程師 (Coding Agent)
-# 擁有工具: 負責動手改寫 tactics.cpp 與 score_weights.h
 # ==============================================================
-coding_tools = [read_cpp_code, write_cpp_code]
-coding_agent = create_react_agent(llm, tools=coding_tools, prompt=SYSTEM_PROMPT_CODING)
+async def coding_agent(state):
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", SYSTEM_PROMPT_CODING),
+        MessagesPlaceholder(variable_name="messages"),
+    ])
+    chain = prompt | llm_with_tools
+    return await chain.ainvoke(state)
 
 # ==============================================================
 # 3. 測試工程師 (QA Agent)
-# 擁有工具: 完全摸不到檔案讀寫權限，只會編譯跟按壓測試按鈕
 # ==============================================================
-qa_tools = [compile_and_run_cpp, run_mahjong_simulation]
-qa_agent = create_react_agent(llm, tools=qa_tools, prompt=SYSTEM_PROMPT_QA)
+async def qa_agent(state):
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", SYSTEM_PROMPT_QA),
+        MessagesPlaceholder(variable_name="messages"),
+    ])
+    chain = prompt | llm_with_tools
+    return await chain.ainvoke(state)
 
 # ==============================================================
-# Node Wrapper (將 Agent 與大迴圈 State 銜接的橋樑)
-# ==============================================================
-def agent_node(state, agent, name):
-    result = agent.invoke(state)
-    # 取出 Agent 在內部自主執行迴圈後，產出的最後一段話
-    last_message = result["messages"][-1]
+import asyncio
+
+async def agent_node(state, agent_fn, name):
+    # 代理人執行前的小幅冷卻，確保在低 RPM 配額下不被門限阻斷
+    await asyncio.sleep(5)
     
-    # 強制塞入寄件者身分，供 Supervisor 辨識 (為了能呈現 "HumanMessage" 樣態以避免模型錯亂)
-    # 對應 langgraph 標準的 name 屬性
-    final_output = HumanMessage(content=last_message.content, name=name)
+    # 執行思考流程
+    result = await agent_fn(state)
+    
+    # 強制塞入寄件者身分 (為了讓 Supervisor 與 ToolNode 辨識是誰發出的 ToolCall)
+    if isinstance(result, AIMessage):
+        result.name = name
     
     return {
-        "messages": [final_output], 
+        "messages": [result], 
         "sender": name
     }
 
-def strategic_node(state):
-    return agent_node(state, strategic_agent, "Strategic")
+async def strategic_node(state):
+    return await agent_node(state, strategic_agent, "Strategic")
 
-def coding_node(state):
-    return agent_node(state, coding_agent, "Coding")
+async def coding_node(state):
+    return await agent_node(state, coding_agent, "Coding")
 
-def qa_node(state):
-    return agent_node(state, qa_agent, "QA")
+async def qa_node(state):
+    return await agent_node(state, qa_agent, "QA")

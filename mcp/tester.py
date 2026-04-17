@@ -11,7 +11,7 @@ def run_mahjong_simulation(games: int = 1000) -> str:
        pit the P0 (C++ AI) against 3 Greedy Baselines, and return a JSON performance report.
        Use this carefully when determining if an algorithm modification is effective.
     """
-    simulator_script = os.path.join(TW_BOT_PATH, "simulator.py")
+    simulator_script = os.path.join(TW_BOT_PATH, "testbench", "simulator.py")
     
     cmd = ["python", simulator_script, str(games)]
     try:

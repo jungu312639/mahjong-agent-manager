@@ -1,5 +1,10 @@
 import os
 import sys
+import io
+
+# 強制 Windows 終端機使用 UTF-8 編碼輸出，避免 Emoji 導致報測
+if sys.platform == "win32":
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
 # 確保可以 import 專案模組
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))

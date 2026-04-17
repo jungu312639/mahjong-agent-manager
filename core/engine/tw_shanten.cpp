@@ -1,4 +1,4 @@
-#include "MahjongAI.h"
+#include "../include/MahjongAI.h"
 #include <algorithm>
 #include <iostream>
 #include <chrono> // 🎯 新增：用來精準計時

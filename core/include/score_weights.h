@@ -16,7 +16,7 @@ namespace ScoreWeights {
     // -------------------------
     // 2. 基礎進張加值權重 (Ukeire1)
     // -------------------------
-    constexpr double WEIGHT_BASE_DRAW = 1.0; 
+    constexpr double WEIGHT_BASE_DRAW = 1.2; // Optimized by MCP 
     constexpr double WEIGHT_WINNING  = 3.0;
     constexpr double WEIGHT_PON      = 3.0;
     constexpr double WEIGHT_CHI      = 1.0;

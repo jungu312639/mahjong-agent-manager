@@ -1,4 +1,4 @@
-#include "MahjongAI.h" // 引入我們剛剛寫好的 Hand 結構
+#include "../include/MahjongAI.h"
 #include <vector>
 #include <algorithm>
 #include <iostream>
