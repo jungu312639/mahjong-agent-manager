@@ -23,6 +23,3 @@ namespace AgentTactics {
     }
 
 }
-
-// TOOLNODE_VERIFIED_SUCCESS
-// TOOLNODE_VERIFIED_SUCCESS

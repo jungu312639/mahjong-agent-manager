@@ -76,3 +76,32 @@ akagi-autonomous-framework/ (Root)
 
 > **致面試官 (Note to Phison Reviewer):**
 > 本框架的核心亮點在於「權限隔離」與「自我進化」。它不只是一個 AI 應用程式，它展示了如何利用現代 AI 技術來加速傳統韌體開發中極其枯燥的「參數調優」與「回歸測試」流程，是一個完整的 AI-Enabled R&D 解決方案。
+
+``` mermaid
+graph TD
+    subgraph Brain_Layer [大腦層 - LangGraph]
+        Agent[Strategic/Coding/QA Agents]
+    end
+
+    subgraph MCP_Layer [工具層 - MCP Repository]
+        Registry[mcp/__init__.py Registry]
+        subgraph Tool_Modules [工具模組]
+            FileOps[file_ops.py: 檔案讀寫]
+            Builder[builder.py: C++ 編譯]
+            Tester[tester.py: 模擬驗證]
+            Memory[tools_memory.py: RAG 記憶]
+        end
+    end
+
+    subgraph Core_Layer [執行層 - Physical World]
+        CPP[C++ Engine / tactics.cpp]
+        DB[(ChromaDB / Vector Data)]
+        FS[File System]
+    end
+
+    Agent -- "1. 生成 Tool Call" --> Registry
+    Registry -- "2. 調用函數" --> Tool_Modules
+    Tool_Modules -- "3. 操作" --> Core_Layer
+    Core_Layer -- "4. 回傳數據/日誌" --> Tool_Modules
+    Tool_Modules -- "5. 格式化結果" --> Agent
+```

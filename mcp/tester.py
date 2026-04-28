@@ -16,7 +16,7 @@ def run_mahjong_simulation(games: int = 1000) -> str:
     cmd = ["python", simulator_script, str(games)]
     try:
         # 執行模擬器，捕獲標準輸出
-        result = subprocess.run(cmd, cwd=TW_BOT_PATH, capture_output=True, text=True, timeout=600, encoding="utf-8")
+        result = subprocess.run(cmd, cwd=TW_BOT_PATH, capture_output=True, text=True, timeout=600, encoding="utf-8", errors="replace")
         if result.returncode != 0:
             return f"SIMULATION EXACT ERROR:\n{result.stderr}"
             
