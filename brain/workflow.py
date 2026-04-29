@@ -8,7 +8,7 @@ from langgraph.prebuilt import ToolNode
 from brain.state import GraphState
 from brain.agent_nodes import strategic_node, coding_node, qa_node
 from brain.prompts import SYSTEM_PROMPT_SUPERVISOR
-from config import LLM_MODEL_NAME, LLM_TEMPERATURE
+from config import LLM_MODEL_NAME_PRO, LLM_MODEL_NAME_FLASH, LLM_TEMPERATURE
 from mcp import agent_tools
 
 # ==========================================
@@ -20,7 +20,10 @@ options = ["FINISH"] + members
 class RouteResponse(BaseModel):
     next: Literal["FINISH", "Strategic", "Coding", "QA"]
 
-llm = ChatGoogleGenerativeAI(model=LLM_MODEL_NAME, temperature=LLM_TEMPERATURE)
+# 建立不同等級的 LLM 實體
+# Supervisor 僅需處理路由邏輯，使用 Flash 模型以降低延遲與 503 發生率
+llm_pro = ChatGoogleGenerativeAI(model=LLM_MODEL_NAME_PRO, temperature=LLM_TEMPERATURE, max_retries=10)
+llm_flash = ChatGoogleGenerativeAI(model=LLM_MODEL_NAME_FLASH, temperature=LLM_TEMPERATURE, max_retries=10)
 
 prompt = ChatPromptTemplate.from_messages(
     [
@@ -35,13 +38,12 @@ prompt = ChatPromptTemplate.from_messages(
     ]
 ).partial(options=str(options))
 
-supervisor_chain = prompt | llm.with_structured_output(RouteResponse)
+# Supervisor 改用 Flash 模型
+supervisor_chain = prompt | llm_flash.with_structured_output(RouteResponse)
 
 import asyncio
 
 async def supervisor_node(state: GraphState):
-    # RPM 15 限制下，每分鐘 15 次，約每 4 秒一次。使用非阻塞延遲確保百分之百穩定。
-    await asyncio.sleep(5)
     routing_decision = await supervisor_chain.ainvoke(state)
     print(f"\n[Routing] Supervisor 統籌決策: 將控制權轉交給 -> {routing_decision.next}")
     return {"next": routing_decision.next}

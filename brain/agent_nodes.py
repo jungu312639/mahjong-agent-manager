@@ -2,19 +2,40 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.messages import HumanMessage, AIMessage
 
-from config import LLM_MODEL_NAME, LLM_TEMPERATURE
+from config import LLM_MODEL_NAME_PRO, LLM_TEMPERATURE
 from brain.prompts import SYSTEM_PROMPT_STRATEGIC, SYSTEM_PROMPT_CODING, SYSTEM_PROMPT_QA
 from mcp.file_ops import read_cpp_code, write_cpp_code, edit_code_segment
 from mcp.builder import compile_and_run_cpp, build_pyd_module
 from mcp.tester import run_mahjong_simulation
 
+from langchain_core.messages import trim_messages
+
+# 1. 定義裁切器 (Trimmer) - 避免對話歷史過長導致 503 錯誤
+# 保留最後 15 則訊息，且強制包含 System Message (Prompt)
+trimmer = trim_messages(
+    strategy="last",
+    max_tokens=15, 
+    token_counter=len, # 以訊息則數計算，若要更精確可用 llm.get_num_tokens
+    include_system=True,
+    allow_partial=False,
+    start_on="human"
+)
+
 # 建立獨立的大腦實體
-llm = ChatGoogleGenerativeAI(model=LLM_MODEL_NAME, temperature=LLM_TEMPERATURE)
+# 建立獨立的大腦實體 (處理代碼修改與報告分析，使用 Pro 等級模型)
+llm = ChatGoogleGenerativeAI(model=LLM_MODEL_NAME_PRO, temperature=LLM_TEMPERATURE, max_retries=10, timeout=60)
+from mcp.tools_memory import tool_retrieve_context, tool_commit_experience
 
-from mcp import agent_tools
+# 建立專屬的工具清單 (Tool Isolation)
+# 修正：將 tool_commit_experience 也分給 Strategic，因為他需要寫 Lesson Learned
+strategic_tools = [tool_retrieve_context, tool_commit_experience]
+coding_tools = [read_cpp_code, write_cpp_code, edit_code_segment]
+qa_tools = [build_pyd_module, compile_and_run_cpp, run_mahjong_simulation, tool_commit_experience]
 
-# 建立具備工具調用語義的大腦實體
-llm_with_tools = llm.bind_tools(agent_tools)
+# 分別綁定給不同的大腦實體
+llm_strategic = llm.bind_tools(strategic_tools)
+llm_coding = llm.bind_tools(coding_tools)
+llm_qa = llm.bind_tools(qa_tools)
 
 # ==============================================================
 # 1. 總工程師 (Strategic Agent)
@@ -25,7 +46,7 @@ async def strategic_agent(state):
         ("system", SYSTEM_PROMPT_STRATEGIC),
         MessagesPlaceholder(variable_name="messages"),
     ])
-    chain = prompt | llm_with_tools
+    chain = prompt | llm_strategic
     return await chain.ainvoke(state)
 
 # ==============================================================
@@ -36,7 +57,7 @@ async def coding_agent(state):
         ("system", SYSTEM_PROMPT_CODING),
         MessagesPlaceholder(variable_name="messages"),
     ])
-    chain = prompt | llm_with_tools
+    chain = prompt | llm_coding
     return await chain.ainvoke(state)
 
 # ==============================================================
@@ -47,18 +68,20 @@ async def qa_agent(state):
         ("system", SYSTEM_PROMPT_QA),
         MessagesPlaceholder(variable_name="messages"),
     ])
-    chain = prompt | llm_with_tools
+    chain = prompt | llm_qa
     return await chain.ainvoke(state)
 
 # ==============================================================
 import asyncio
 
 async def agent_node(state, agent_fn, name):
-    # 代理人執行前的小幅冷卻，確保在低 RPM 配額下不被門限阻斷
-    await asyncio.sleep(5)
-    
-    # 執行思考流程
-    result = await agent_fn(state)
+    # 在呼叫 Agent 思考前，先裁切訊息歷史，確保不會觸發 503 或 Token 上限
+    trimmed_messages = trimmer.invoke(state["messages"])
+    temp_state = state.copy()
+    temp_state["messages"] = trimmed_messages
+
+    # 執行思考流程 (已解除 RPM 延遲封印)
+    result = await agent_fn(temp_state)
     
     # 強制塞入寄件者身分 (為了讓 Supervisor 與 ToolNode 辨識是誰發出的 ToolCall)
     if isinstance(result, AIMessage):

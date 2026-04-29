@@ -126,7 +126,12 @@ const toggleRun = () => {
           <div class="flex items-center gap-2">
             <div :class="['w-3 h-3 rounded-full', isRunning ? 'bg-green-500 animate-pulse' : 'bg-gray-500']"></div>
             <span class="text-sm">{{ isRunning ? '連線中' : '未連線' }}</span>
-            <span class="text-xs ml-auto px-2 py-0.5 rounded bg-blue-900 text-blue-200 border border-blue-700">Production</span>
+            <span :class="[
+              'text-xs ml-auto px-2 py-0.5 rounded border',
+              IS_MOCK_MODE ? 'bg-yellow-900 text-yellow-200 border-yellow-700' : 'bg-blue-900 text-blue-200 border-blue-700'
+            ]">
+              {{ IS_MOCK_MODE ? 'Mock Demo' : 'Production' }}
+            </span>
           </div>
         </div>
         

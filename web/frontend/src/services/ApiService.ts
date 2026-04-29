@@ -160,18 +160,29 @@ export class ApiService {
             onError(data.content || '未知的後端錯誤');
             eventSource.close();
           } else {
-            // data.type 可能是 'message', 'thought', 'tool_call', 'diff', 'metric' 等
-            // 如果後端目前只吐 'message'，前端這裡可以適當轉換或直接透傳
-            
-            // 嘗試從字串解析是否包含特殊的格式，如果沒有則當成 thought
-            // 在此先將所有 'message' 轉為 'thought' 供日誌顯示
+            // 進行前後端資料格式的轉換 (Adapter Pattern 轉接器模式)
             let type = data.type;
+            let content = data.content;
+
             if (type === 'message') {
-                type = 'thought';
+              // 後端的 'message' 對應前端的 'thought'
+              type = 'thought';
+            } else if (type === 'code_diff') {
+              // 後端發來的是 old_code 與 new_code，前端需要組合成一段對比字串
+              type = 'diff';
+              content = `// [修改前]\n${data.old_code}\n\n// [修改後]\n${data.new_code}`;
+            } else if (type === 'metrics') {
+              // 後端的 'metrics' 事件帶有 win_rate
+              type = 'metric';
+              // 假設後端 win_rate 是 65.5，前端圖表可以直接吃這個數字 (或依需求除以100)
+              content = data.win_rate / 100; // 配合前端 Number((data.content * 100).toFixed(1)) 的邏輯，如果後端給 65，前端吃 0.65 最好
             }
+            // tool_call 的 type 兩邊一致，直接通過
+
             onMessage({
                 ...data,
-                type
+                type: type,
+                content: content
             });
           }
         } catch (err) {

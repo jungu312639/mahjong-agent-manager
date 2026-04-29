@@ -13,11 +13,15 @@ namespace AgentTactics {
         // 例如：根據 RAG 理論，如果 turn > 12 且 shanten >= 2，大幅降低分數以強制防守
         // ==============================================================
 
-        if (turn > 15) {
-            final_score *= 0.5;
-        }
-
         // TODO: 未來 Agent 可以根據 Testbench 實驗，修改此處邏輯
+
+        // Defensive tactic: If turn is greater than 12 and shanten is 2 or more,
+        // significantly reduce the score to encourage defensive play.
+
+
+        if (turn > 12 && original_shanten >= 2) {
+            final_score -= 10000.0; // Significantly reduce score for defensive play
+        }
 
         return final_score;
     }

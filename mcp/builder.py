@@ -36,10 +36,12 @@ def compile_and_run_cpp(cpp_filename: str) -> str:
         return f"Execution Error during running: {e}"
 
 @tool
-def build_pyd_module() -> str:
+def build_pyd_module(module_name: str, reasoning: str) -> str:
     """
-    使用 core/setup.py 將 C++ 核心編譯為 Python 可呼叫的 .pyd 模組。
-    這是最推薦的編譯方式，會自動處理所有依賴與路徑。
+    使用 core/setup.py 將 C++ 核心編譯為 Python 模組。
+    Args:
+        module_name (str): 必須填寫，例如 'tw_ukeire_cpp'。
+        reasoning (str): 為什麼現在需要編譯？(例如：代碼已修改完成)
     """
     # 這裡我們固定到專案根目錄下的 core 資料夾執行
     # 假設專案路徑是在當前目錄或透過 config 取得
