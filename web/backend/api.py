@@ -90,12 +90,19 @@ async def run_workflow(message: str = "開始優化", mode: str = "manual"):
                                     
                             # 情況 2：一般文字訊息 (過濾掉純粹的 ToolMessage 與空內容)
                             if msg.content and msg_type != "tool":
-                                yield json.dumps({
-                                    "type": "message",
-                                    "sender": sender,
-                                    "content": msg.content
-                                })
-                                await asyncio.sleep(0.1)
+                                # 處理 Google 模型回傳的 list 型態 content
+                                final_content = msg.content
+                                if isinstance(final_content, list):
+                                    # 提取所有 text 類型的內容並合併
+                                    final_content = "\n".join([item.get("text", "") for item in final_content if isinstance(item, dict) and "text" in item])
+                                
+                                if final_content:
+                                    yield json.dumps({
+                                        "type": "message",
+                                        "sender": sender,
+                                        "content": final_content
+                                    })
+                                    await asyncio.sleep(0.1)
                                 
                             # 情況 3：工具執行完畢的回傳結果 (ToolMessage)
                             if msg_type == "tool":
@@ -113,15 +120,17 @@ async def run_workflow(message: str = "開始優化", mode: str = "manual"):
                                 
                                 # 3-A: 如果是跑分模擬器，擷取勝率並發送 metrics 事件
                                 if tool_name == "run_mahjong_simulation":
-                                    import re
-                                    # 嘗試從回傳的 JSON 字串中找尋 "win_rate": 65.5 這種格式
-                                    match = re.search(r'"win_rate"\s*:\s*([\d\.]+)', tool_content)
-                                    if match:
-                                        win_rate = float(match.group(1))
-                                        yield json.dumps({
-                                            "type": "metrics",
-                                            "win_rate": win_rate
-                                        })
+                                    try:
+                                        import json as std_json
+                                        res_data = std_json.loads(tool_content)
+                                        win_rate = res_data.get("win_rate_percentage") or res_data.get("win_rate")
+                                        if win_rate is not None:
+                                            yield json.dumps({
+                                                "type": "metric",
+                                                "win_rate": float(win_rate)
+                                            })
+                                    except Exception as e:
+                                        pass
                                 await asyncio.sleep(0.1)
                                 
             yield json.dumps({"type": "finish", "content": "流程點結束"})

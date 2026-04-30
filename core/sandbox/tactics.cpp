@@ -12,16 +12,12 @@ namespace AgentTactics {
         // LLM Coding Agent 可以在這裡自由增加 if-else 邏輯
         // 例如：根據 RAG 理論，如果 turn > 12 且 shanten >= 2，大幅降低分數以強制防守
         // ==============================================================
+        if (turn > 12) {
+            // [USER OVERRIDE] 當巡目大於 12 時，進入防守模式，將分數大幅降低以避免打出危險牌
+            final_score *= 0.1;
+        }
 
         // TODO: 未來 Agent 可以根據 Testbench 實驗，修改此處邏輯
-
-        // Defensive tactic: If turn is greater than 12 and shanten is 2 or more,
-        // significantly reduce the score to encourage defensive play.
-
-
-        if (turn > 12 && original_shanten >= 2) {
-            final_score -= 10000.0; // Significantly reduce score for defensive play
-        }
 
         return final_score;
     }

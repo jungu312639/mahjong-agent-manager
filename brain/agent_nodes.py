@@ -83,7 +83,16 @@ async def agent_node(state, agent_fn, name):
     # 執行思考流程 (已解除 RPM 延遲封印)
     result = await agent_fn(temp_state)
     
-    # 強制塞入寄件者身分 (為了讓 Supervisor 與 ToolNode 辨識是誰發出的 ToolCall)
+    # --- 新增數據清洗邏輯 ---
+    # 剔除訊息中的額外元數據 (例如 signature)，減少前端負擔與日誌混亂
+    if hasattr(result, 'additional_kwargs') and 'signature' in result.additional_kwargs:
+        del result.additional_kwargs['signature']
+    
+    # 如果是在 extras 裡 (部分版本)
+    if hasattr(result, 'response_metadata') and 'signature' in result.response_metadata:
+        del result.response_metadata['signature']
+    # ----------------------
+
     if isinstance(result, AIMessage):
         result.name = name
     

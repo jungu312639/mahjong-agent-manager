@@ -112,7 +112,7 @@ export class ApiService {
           onMessage({
             type: 'metric',
             sender: 'QA',
-            content: 0.65 // 勝率跳到 65%
+            win_rate: 65.0 // 直接給百分比
           });
           onMessage({
             type: 'thought',
@@ -171,11 +171,8 @@ export class ApiService {
               // 後端發來的是 old_code 與 new_code，前端需要組合成一段對比字串
               type = 'diff';
               content = `// [修改前]\n${data.old_code}\n\n// [修改後]\n${data.new_code}`;
-            } else if (type === 'metrics') {
-              // 後端的 'metrics' 事件帶有 win_rate
-              type = 'metric';
-              // 假設後端 win_rate 是 65.5，前端圖表可以直接吃這個數字 (或依需求除以100)
-              content = data.win_rate / 100; // 配合前端 Number((data.content * 100).toFixed(1)) 的邏輯，如果後端給 65，前端吃 0.65 最好
+            } else if (type === 'metric') {
+              // 後端的 'metric' 直接透傳
             }
             // tool_call 的 type 兩邊一致，直接通過
 

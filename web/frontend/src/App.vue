@@ -27,16 +27,17 @@ const agents = ref([
 ])
 
 const diffCode = ref(`// 等待 Agent 修改...`)
-const winRates = ref([50, 50, 50, 50, 50, 50])
-let currentTurn = 5
+const winRates = ref([0])
+let currentTurn = 0
+const taskHistory = ref([])
 
 // Chart options
 const chartOptions = ref({
   grid: { left: 40, right: 20, top: 20, bottom: 20 },
   tooltip: { trigger: 'axis', formatter: '{b}: {c}%' },
-  xAxis: { type: 'category', data: ['T1', 'T2', 'T3', 'T4', 'T5', 'Now'] },
-  yAxis: { type: 'value', min: 0, max: 100, axisLabel: { formatter: '{value}%' } },
-  series: [{ data: winRates.value, type: 'line', smooth: true, itemStyle: { color: '#3b82f6' }, areaStyle: { color: 'rgba(59, 130, 246, 0.2)' } }]
+  xAxis: { type: 'category', data: ['Base'] },
+  yAxis: { type: 'value', min: 0, max: 40, axisLabel: { formatter: '{value}%' } },
+  series: [{ data: winRates.value, type: 'line', smooth: true, symbolSize: 8, itemStyle: { color: '#3b82f6' }, areaStyle: { color: 'rgba(59, 130, 246, 0.2)' } }]
 })
 
 let abortAgentSession = null;
@@ -86,13 +87,18 @@ const toggleRun = () => {
         diffCode.value = data.content
       } else if (data.type === 'metric') {
         currentTurn++
-        const newWinRate = Number((data.content * 100).toFixed(1))
+        const newWinRate = Number(data.win_rate.toFixed(1))
         winRates.value.push(newWinRate)
-        winRates.value.shift()
+        
+        // 如果數據點太多 (超過 10 個)，才開始移除舊數據
+        if (winRates.value.length > 10) {
+          winRates.value.shift()
+          chartOptions.value.xAxis.data.shift()
+        }
         
         chartOptions.value = {
            ...chartOptions.value,
-           xAxis: { ...chartOptions.value.xAxis, data: [...chartOptions.value.xAxis.data.slice(1), `T${currentTurn}`] },
+           xAxis: { ...chartOptions.value.xAxis, data: [...chartOptions.value.xAxis.data, `T${currentTurn}`] },
            series: [{ ...chartOptions.value.series[0], data: [...winRates.value] }]
         }
       }
@@ -100,6 +106,15 @@ const toggleRun = () => {
     () => {
       isRunning.value = false
       agents.value.forEach(a => a.status = 'idle')
+      
+      // 紀錄到歷史
+      const lastRate = winRates.value[winRates.value.length - 1]
+      taskHistory.value.unshift({
+        id: Date.now(),
+        query: userInput.value || '自動優化',
+        winRate: lastRate,
+        status: lastRate > winRates.value[0] ? 'success' : 'stable'
+      })
     },
     (err) => {
       apiError.value = err
@@ -138,6 +153,28 @@ const toggleRun = () => {
         <div v-if="apiError" class="mb-4 p-2 bg-red-900/50 border border-red-700 rounded flex items-start gap-2 text-xs text-red-200 break-words">
            <AlertTriangle class="w-4 h-4 shrink-0 mt-0.5" />
            <span>{{ apiError }}</span>
+        </div>
+
+        <!-- 任務歷史 -->
+        <div v-if="taskHistory.length > 0" class="mb-4">
+          <label class="block text-xs text-gray-400 mb-2">歷史任務</label>
+          <div class="space-y-2 max-h-40 overflow-y-auto pr-1">
+            <div v-for="item in taskHistory" :key="item.id" 
+                 class="bg-gray-900/50 border border-gray-700 rounded p-2 text-[10px] flex flex-col gap-1">
+              <div class="flex justify-between items-start">
+                <span class="text-gray-300 truncate w-24">{{ item.query }}</span>
+                <span :class="[
+                  'px-1.5 py-0.5 rounded-sm font-bold',
+                  item.status === 'success' ? 'bg-green-900 text-green-300' : 'bg-gray-700 text-gray-300'
+                ]">
+                  {{ item.winRate }}%
+                </span>
+              </div>
+              <div class="text-[9px] text-gray-500 italic">
+                Status: {{ item.status === 'success' ? 'Improved' : 'Stable' }}
+              </div>
+            </div>
+          </div>
         </div>
 
         <div class="mb-4">
