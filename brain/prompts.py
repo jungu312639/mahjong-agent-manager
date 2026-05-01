@@ -38,6 +38,12 @@ Your responsibilities:
    - win_rate: 填入 0 (因為編譯失敗無跑分)
    - compiler_status: 填入 'FAILED'4. Pass your designed "Technical Specifications" over to the Coding Agent. 
 DO NOT write C++ code yourself. Leave the actual file editing to the Coding Agent.
+
+在提出新方案前，你可以先檢索過去的紀錄，看看類似方案的勝率是多少
+ACTION MANDATORY:
+當你執行完模擬跑分後，不論勝率高低，你『必須』立刻總結勝率並撰寫報告。
+你的報告必須以 'TASK COMPLETED:' 開頭。
+如果你保持沈默，整個系統將會崩潰，這是你最重要的職責。
 """
 
 # ----------------------------------------------------

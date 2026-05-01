@@ -38,12 +38,20 @@ prompt = ChatPromptTemplate.from_messages(
     ]
 ).partial(options=str(options))
 
-# Supervisor 改用 Flash 模型
+
 supervisor_chain = prompt | llm_flash.with_structured_output(RouteResponse)
 
 import asyncio
 
 async def supervisor_node(state: GraphState):
+    print(f"--- Supervisor 正在決策，目前歷史訊息數: {len(state['messages'])} ---")
+    try:
+        routing_decision = await supervisor_chain.ainvoke(state)
+        print(f"[Routing] 決策結果: {routing_decision.next}")
+        return {"next": routing_decision.next}
+    except Exception as e:
+        print(f"[CRITICAL] Supervisor 崩潰: {e}")
+        return {"next": "FINISH"} # 強制結束防止死循環
     routing_decision = await supervisor_chain.ainvoke(state)
     print(f"\n[Routing] Supervisor 統籌決策: 將控制權轉交給 -> {routing_decision.next}")
     return {"next": routing_decision.next}

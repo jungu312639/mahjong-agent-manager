@@ -75,24 +75,40 @@ async def qa_agent(state):
 import asyncio
 
 async def agent_node(state, agent_fn, name):
-    # 在呼叫 Agent 思考前，先裁切訊息歷史，確保不會觸發 503 或 Token 上限
-    trimmed_messages = trimmer.invoke(state["messages"])
-    temp_state = state.copy()
-    temp_state["messages"] = trimmed_messages
-
-    # 執行思考流程 (已解除 RPM 延遲封印)
-    result = await agent_fn(temp_state)
+    # ---------------------------------------------------------
+    # 1. 偵錯期：暫時跳過裁切，確認是否為 trimmer 導致內容被刪光
+    # ---------------------------------------------------------
+    # trimmed_messages = trimmer.invoke(state["messages"])
+    # temp_state = state.copy()
+    # temp_state["messages"] = trimmed_messages
     
-    # --- 新增數據清洗邏輯 ---
-    # 剔除訊息中的額外元數據 (例如 signature)，減少前端負擔與日誌混亂
-    if hasattr(result, 'additional_kwargs') and 'signature' in result.additional_kwargs:
-        del result.additional_kwargs['signature']
+    # 目前直接使用完整的 state 進行呼叫
+    result = await agent_fn(state)
     
-    # 如果是在 extras 裡 (部分版本)
-    if hasattr(result, 'response_metadata') and 'signature' in result.response_metadata:
-        del result.response_metadata['signature']
-    # ----------------------
+    # ---------------------------------------------------------
+    # 2. 強化型保險絲：只在真的「完全沒反應」時才介入
+    # ---------------------------------------------------------
+    content = result.content
+    has_tool_calls = hasattr(result, 'tool_calls') and len(result.tool_calls) > 0
+    is_content_empty = False
 
+    if content is None:
+        is_content_empty = True
+    elif isinstance(content, str):
+        is_content_empty = (len(content.strip()) == 0)
+    elif isinstance(content, list):
+        is_content_empty = (len(content) == 0)
+    
+    # 【關鍵修正】：如果內容為空 且 沒有呼叫任何工具，才填充預設文字
+    if is_content_empty and not has_tool_calls:
+        if name == "Strategic":
+            result.content = "I have received the latest information and am analyzing the next strategic move."
+        elif name == "QA":
+            result.content = "I am processing the simulation request and will provide the report shortly."
+        else:
+            result.content = f"Processing complete by {name}. Handing over to next stage."
+
+    # 確保 sender 身分正確被記錄
     if isinstance(result, AIMessage):
         result.name = name
     

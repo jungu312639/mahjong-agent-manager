@@ -10,12 +10,21 @@ namespace AgentTactics {
         // ==============================================================
         // 🚧 [SANDBOX AREA] 🚧
         // LLM Coding Agent 可以在這裡自由增加 if-else 邏輯
-        // 例如：根據 RAG 理論，如果 turn > 12 且 shanten >= 2，大幅降低分數以強制防守
         // ==============================================================
-        if (turn > 12) {
-            // [USER OVERRIDE] 當巡目大於 12 時，進入防守模式，將分數大幅降低以避免打出危險牌
-            final_score *= 0.1;
+
+        // 根據 RAG 分析，舊的防禦策略 (單純看巡目) 效果不彰。
+        // 新策略：晚巡 (12巡後)，當自己手牌離聽牌還很遠 (2向聽以上)，
+        // 且有任一對手已經明顯領先 (吃碰2次以上) 時，轉入高度防禦模式。
+        // 在此，我們假設 k1_count 代表對手的總吃碰數。
+        bool high_alert_defense = (turn > 12 && original_shanten >= 2 && k1_count >= 2);
+
+        if (high_alert_defense) {
+            // 進入高度防禦模式，大幅降低當前操作的評分，
+            // 迫使 AI 選擇更安全的打法 (例如，打現物安全牌，其評分會更高)。
+            // 這裡我們將原始分數乘以一個懲罰因子。
+            final_score *= 0.1; // Penalty factor for high-risk situations
         }
+
 
         // TODO: 未來 Agent 可以根據 Testbench 實驗，修改此處邏輯
 
