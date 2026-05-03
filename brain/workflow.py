@@ -6,10 +6,9 @@ from langgraph.graph import StateGraph, START, END
 from langgraph.prebuilt import ToolNode
 
 from brain.state import GraphState
-from brain.agent_nodes import strategic_node, coding_node, qa_node
+from brain.agent_nodes import strategic_node, coding_node, qa_node, agent_tools
 from brain.prompts import SYSTEM_PROMPT_SUPERVISOR
 from config import LLM_MODEL_NAME_PRO, LLM_MODEL_NAME_FLASH, LLM_TEMPERATURE
-from mcp import agent_tools
 
 # ==========================================
 # 1. 架構定義與 Supervisor 路由器設定
@@ -47,17 +46,11 @@ async def supervisor_node(state: GraphState):
     print(f"--- Supervisor 正在決策，目前歷史訊息數: {len(state['messages'])} ---")
     try:
         routing_decision = await supervisor_chain.ainvoke(state)
-        print(f"[Routing] 決策結果: {routing_decision.next}")
+        print(f"\n[Routing] Supervisor 統籌決策: 將控制權轉交給 -> {routing_decision.next}")
         return {"next": routing_decision.next}
     except Exception as e:
         print(f"[CRITICAL] Supervisor 崩潰: {e}")
         return {"next": "FINISH"} # 強制結束防止死循環
-    routing_decision = await supervisor_chain.ainvoke(state)
-    print(f"\n[Routing] Supervisor 統籌決策: 將控制權轉交給 -> {routing_decision.next}")
-    return {"next": routing_decision.next}
-
-# 工具執行節點
-tool_node = ToolNode(agent_tools)
 
 # ------------------------------------------
 # 路由邏輯：判斷 Agent 是否需要執行工具
@@ -72,51 +65,54 @@ def router(state):
         return "call_tool"
     return "continue"
 
-# ==========================================
-# 2. 畫圖 (建構 Multi-Agent StateGraph)
-# ==========================================
-workflow = StateGraph(GraphState)
-
-# 註冊所有節點
-workflow.add_node("Supervisor", supervisor_node)
-workflow.add_node("Strategic", strategic_node)
-workflow.add_node("Coding", coding_node)
-workflow.add_node("QA", qa_node)
-workflow.add_node("tools", tool_node)
-
-# ------------------------------------------
-# 設定邊 (Edges)
-# ------------------------------------------
-
-# 1. 每個 Agent 做完後，檢查是否需要呼叫工具
-for member in members:
+def get_app():
+    # 每次呼叫 get_app() 時，重新載入 agent_tools，確保已從 MCP 獲取最新工具
+    from brain.agent_nodes import agent_tools
+    from langgraph.prebuilt import ToolNode
+    
+    if not agent_tools:
+        print("[WARNING] agent_tools 目前為空！請確保已呼叫 initialize_tools()")
+        
+    tool_node = ToolNode(agent_tools)
+    
+    # 建立圖形
+    workflow = StateGraph(GraphState)
+    
+    # 註冊所有節點
+    workflow.add_node("Supervisor", supervisor_node)
+    workflow.add_node("Strategic", strategic_node)
+    workflow.add_node("Coding", coding_node)
+    workflow.add_node("QA", qa_node)
+    workflow.add_node("tools", tool_node)
+    
+    # 1. 每個 Agent 做完後，檢查是否需要呼叫工具
+    for member in members:
+        workflow.add_conditional_edges(
+            member,
+            router,
+            {
+                "call_tool": "tools",     
+                "continue": "Supervisor" 
+            }
+        )
+    
+    # 2. 工具執行完後，必須「回到原本的 Agent」繼續思考/回報
     workflow.add_conditional_edges(
-        member,
-        router,
+        "tools",
+        lambda state: state["sender"],
         {
-            "call_tool": "tools",     # 有工具需求 -> 去執行工具
-            "continue": "Supervisor" # 沒工具需求 -> 回報給主管
+            "Strategic": "Strategic",
+            "Coding": "Coding",
+            "QA": "QA"
         }
     )
-
-# 2. 工具執行完後，必須「回到原本的 Agent」繼續思考/回報
-workflow.add_conditional_edges(
-    "tools",
-    lambda state: state["sender"],
-    {
-        "Strategic": "Strategic",
-        "Coding": "Coding",
-        "QA": "QA"
-    }
-)
-
-# 3. 主管決定下一棒
-conditional_map = {k: k for k in members}
-conditional_map["FINISH"] = END
-workflow.add_conditional_edges("Supervisor", lambda state: state["next"], conditional_map)
-
-# 設定進入點
-workflow.add_edge(START, "Supervisor")
-
-# 編譯
-app = workflow.compile()
+    
+    # 3. 主管決定下一棒
+    conditional_map = {k: k for k in members}
+    conditional_map["FINISH"] = END
+    workflow.add_conditional_edges("Supervisor", lambda state: state["next"], conditional_map)
+    
+    # 設定進入點
+    workflow.add_edge(START, "Supervisor")
+    
+    return workflow.compile()

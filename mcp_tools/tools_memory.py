@@ -1,4 +1,8 @@
 import os
+
+# 避免 HuggingFace Tokenizer 在 asyncio.to_thread 內執行時發生死結 (Deadlock)
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
+
 import chromadb
 from chromadb.utils import embedding_functions
 from langchain_core.tools import tool
@@ -9,18 +13,16 @@ from langchain_core.tools import tool
 DB_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "vector_db")
 client = chromadb.PersistentClient(path=DB_PATH)
 
-# 延遲加載 (Lazy Loading) 機制，避免 import 時就卡住
-_theory_coll = None
-_history_coll = None
+# ==============================================================
+# 提前在主執行緒初始化模型 (Eager Loading)，避免在 asyncio.to_thread 內發生死結
+# ==============================================================
+# 使用完全本機端不依懶網路的 Sentence-Transformer 模型
+emb_fn = embedding_functions.SentenceTransformerEmbeddingFunction(model_name="all-MiniLM-L6-v2")
+
+_theory_coll = client.get_or_create_collection(name="mahjong_knowledge", embedding_function=emb_fn)
+_history_coll = client.get_or_create_collection(name="evolution_history", embedding_function=emb_fn)
 
 def get_collections():
-    global _theory_coll, _history_coll
-    if _theory_coll is None or _history_coll is None:
-        print("[*] 正在初始化向量資料庫與 Embedding 模型...")
-        # 使用完全本機端不依懶網路的 Sentence-Transformer 模型
-        emb_fn = embedding_functions.SentenceTransformerEmbeddingFunction(model_name="all-MiniLM-L6-v2")#說明一下這個模型
-        _theory_coll = client.get_or_create_collection(name="mahjong_knowledge", embedding_function=emb_fn)
-        _history_coll = client.get_or_create_collection(name="evolution_history", embedding_function=emb_fn)
     return _theory_coll, _history_coll
 
 # ==============================================================

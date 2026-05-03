@@ -18,10 +18,22 @@ from sse_starlette.sse import EventSourceResponse
 from pydantic import BaseModel
 
 # 引入我們之前寫好的大腦核心
-from brain import app
+from brain import get_app
+from brain.agent_nodes import initialize_tools, shutdown_tools
 from langchain_core.messages import HumanMessage
 
-server = FastAPI(title="Akagi AI Agent API")
+app = None
+
+async def lifespan_context(server: FastAPI):
+    global app
+    print("Initializing MCP tools...")
+    await initialize_tools()
+    app = get_app()
+    yield
+    print("Shutting down MCP tools...")
+    await shutdown_tools()
+
+server = FastAPI(title="Akagi AI Agent API", lifespan=lifespan_context)
 
 # 允許跨域請求 (因為前端 Vite 預設在 5173 埠)
 server.add_middleware(
@@ -47,6 +59,11 @@ async def run_workflow(message: str = "開始優化", mode: str = "manual"):
     使用 SSE (Server-Sent Events) 將 Agent 的每一步發送給前端。
     """
     async def event_generator():
+        global app
+        if app is None:
+            yield json.dumps({"type": "error", "content": "App not initialized"})
+            return
+
         # 初始化對話背景
         inputs = {"messages": [HumanMessage(content=message)]}
         
@@ -90,12 +107,20 @@ async def run_workflow(message: str = "開始優化", mode: str = "manual"):
                                     
                             # 情況 2：一般文字訊息 (過濾掉純粹的 ToolMessage 與空內容)
                             if msg.content and msg_type != "tool":
-                                # 處理 Google 模型回傳的 list 型態 content
+                                # 處理 Google 模型回傳的複雜 content 格式
                                 final_content = msg.content
                                 if isinstance(final_content, list):
-                                    # 提取所有 text 類型的內容並合併
-                                    final_content = "\n".join([item.get("text", "") for item in final_content if isinstance(item, dict) and "text" in item])
-                                
+                                    final_content = "\n".join([item.get("text", str(item)) for item in final_content if isinstance(item, dict)])
+                                elif isinstance(final_content, dict):
+                                    final_content = final_content.get("text", str(final_content))
+                                elif isinstance(final_content, str):
+                                    # 如果是字串，但包含了 {'type': 'text', 'text': '...', 'extras': ...} 這樣的結構
+                                    import re
+                                    matches = re.findall(r"'text':\s*'(.*?)',\s*'extras'", final_content, re.DOTALL)
+                                    if matches:
+                                        # 單純替換換行符號與跳脫字元，不要用 unicode_escape 以免破壞中文編碼
+                                        final_content = "\n\n".join([m.replace("\\n", "\n").replace('\\"', '"').replace("\\'", "'") for m in matches])
+
                                 if final_content:
                                     yield json.dumps({
                                         "type": "message",
@@ -107,7 +132,16 @@ async def run_workflow(message: str = "開始優化", mode: str = "manual"):
                             # 情況 3：工具執行完畢的回傳結果 (ToolMessage)
                             if msg_type == "tool":
                                 tool_name = getattr(msg, "name", "unknown")
-                                tool_content = str(msg.content)
+                                
+                                # 正確提取 tool content，因為 Gemini 可能將其包裝為 [{'type': 'text', 'text': '...'}]
+                                tool_content_raw = msg.content
+                                if isinstance(tool_content_raw, list) and len(tool_content_raw) > 0:
+                                    if isinstance(tool_content_raw[0], dict) and "text" in tool_content_raw[0]:
+                                        tool_content = tool_content_raw[0]["text"]
+                                    else:
+                                        tool_content = str(tool_content_raw)
+                                else:
+                                    tool_content = str(tool_content_raw)
                                 
                                 # 發送系統層級的日誌
                                 # 取前 150 字避免日誌太長洗版
@@ -130,7 +164,7 @@ async def run_workflow(message: str = "開始優化", mode: str = "manual"):
                                                 "win_rate": float(win_rate)
                                             })
                                     except Exception as e:
-                                        pass
+                                        print(f"解析勝率失敗: {e}")
                                 await asyncio.sleep(0.1)
                                 
             yield json.dumps({"type": "finish", "content": "流程點結束"})

@@ -1,1 +1,1 @@
-from .workflow import app
+from .workflow import get_app

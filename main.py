@@ -1,7 +1,9 @@
-from brain import app
-from langchain_core.messages import HumanMessage
+import asyncio
 import sys
 import os
+from brain import app # 確保從正確位置匯入 LangGraph App
+from langchain_core.messages import HumanMessage
+from brain.agent_nodes import initialize_tools # 從新節點檔案匯入連線邏輯[cite: 11]
 
 def display_welcome_banner():
     print("================================================================")
@@ -14,36 +16,46 @@ def display_welcome_banner():
     print("\n輸入 'exit' 或 'quit' 即可離開程式。")
     print("================================================================\n")
 
-def main():
+async def run_main():
     display_welcome_banner()
     
-    # 初始化一個空的訊息清單，作為持續對話的記憶體
+    # 1. 初始化持久化 MCP 連線池 (面試亮點：確保 Session 在整個迴圈存活)[cite: 11, 13]
+    print("[*] 正在連線至 MCP 工具服務器...", flush=True)
+    try:
+        tools = await initialize_tools() 
+        print(f"[*] MCP 初始化成功，已獲取 {len(tools)} 個工具", flush=True)
+    except Exception as e:
+        print(f"[!] MCP 初始化失敗: {e}", flush=True)
+        return
+
+    # 初始化對話歷史[cite: 12]
     messages_history = []
     
-    # 這是 Human-in-the-loop 的無限迴圈
+    # Human-in-the-loop 迴圈[cite: 12]
     while True:
         try:
-            user_input = input("User (你對演算法的想法或回饋): ")
+            # 由於 input 是阻塞的，在 async 中建議用 to_thread[cite: 12]
+            user_input = await asyncio.to_thread(input, "User (你對演算法的想法或回饋): ")
+            
             if user_input.lower() in ['exit', 'quit']:
                 print("離開 AI Agent。")
                 break
             if not user_input.strip():
                 continue
             
-            # 將使用者的訊息加入對話尾端
+            # 加入使用者訊息[cite: 12]
             messages_history.append(HumanMessage(content=user_input))
             
-            print("\n[Agent 思考與執行中...]\n")
+            print("\n[Agent 團隊正在思考與執行工具中...]\n")
             
-            # 將整串歷史訊息丟進去給 LangGraph 執行
-            result = app.invoke({"messages": messages_history})
+            # 2. 改用 ainvoke 以支援非同步的 MCP 工具呼叫[cite: 12]
+            result = await app.ainvoke({"messages": messages_history})
             
-            # Graph 跑完（停在 end 節點）後，抓取最新的所有訊息
-            updated_messages = result["messages"]
-            messages_history = updated_messages
+            # 更新對話紀錄[cite: 12]
+            messages_history = result["messages"]
             
-            # 找到最後一個 Agent 回應並印出，做為 Human-in-the-loop 讓你審核
-            last_ai_message = updated_messages[-1]
+            # 顯示最後一個 Agent 回應[cite: 12]
+            last_ai_message = messages_history[-1]
             print("================ Agent 回報 ================")
             print(last_ai_message.content)
             print("==========================================\n")
@@ -55,10 +67,10 @@ def main():
             print(f"\n發生錯誤: {e}")
 
 if __name__ == "__main__":
-    # 檢查是否設定了 API KEY，否則提醒使用者
+    # 環境檢查[cite: 12]
     if not os.environ.get("GOOGLE_API_KEY"):
         print("警告：你尚未在 .env 檔案中設定 GOOGLE_API_KEY。")
-        print("請建立 .env 檔案並加入 GOOGLE_API_KEY=<你的API金鑰>，否則會無法連線到 Gemini。")
         sys.exit(1)
-        
-    main()
+    
+    # 使用 asyncio 啟動[cite: 14]
+    asyncio.run(run_main())

@@ -12,11 +12,9 @@ namespace AgentTactics {
         // LLM Coding Agent 可以在這裡自由增加 if-else 邏輯
         // ==============================================================
 
-        // 根據 RAG 分析，舊的防禦策略 (單純看巡目) 效果不彰。
-        // 新策略：晚巡 (12巡後)，當自己手牌離聽牌還很遠 (2向聽以上)，
-        // 且有任一對手已經明顯領先 (吃碰2次以上) 時，轉入高度防禦模式。
-        // 在此，我們假設 k1_count 代表對手的總吃碰數。
-        bool high_alert_defense = (turn > 12 && original_shanten >= 2 && k1_count >= 2);
+        // 根據使用者指示，將防禦邏輯簡化為只看巡目。
+        // 當巡目 > 15 時，進入防禦模式。
+        bool high_alert_defense = (turn > 15);
 
         if (high_alert_defense) {
             // 進入高度防禦模式，大幅降低當前操作的評分，

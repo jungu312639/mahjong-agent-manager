@@ -19,7 +19,16 @@ def compile_and_run_cpp(cpp_filename: str) -> str:
     py_include = pybind11.get_include()
     compile_cmd = ["g++", "-O3", "-shared", "-std=c++11", f"-I{py_include}", cpp_path, "-o", exe_path]
     try:
-        compile_res = subprocess.run(compile_cmd, cwd=TW_BOT_PATH, capture_output=True, text=True, encoding="utf-8", errors="replace")
+        compile_res = subprocess.run(
+            compile_cmd, 
+            cwd=TW_BOT_PATH, 
+            capture_output=True, 
+            text=True, 
+            encoding="utf-8", 
+            errors="replace",
+            stdin=subprocess.DEVNULL,
+            close_fds=True
+        )
         if compile_res.returncode != 0:
             return f"COMPILATION ERROR:\n{compile_res.stderr}"
     except Exception as e:
@@ -28,7 +37,17 @@ def compile_and_run_cpp(cpp_filename: str) -> str:
     # 2. 執行 (Run)
     run_cmd = [exe_path] 
     try:
-        run_res = subprocess.run(run_cmd, cwd=TW_BOT_PATH, capture_output=True, text=True, timeout=10, encoding="utf-8", errors="replace")
+        run_res = subprocess.run(
+            run_cmd, 
+            cwd=TW_BOT_PATH, 
+            capture_output=True, 
+            text=True, 
+            timeout=10, 
+            encoding="utf-8", 
+            errors="replace",
+            stdin=subprocess.DEVNULL,
+            close_fds=True
+        )
         return f"EXECUTION OUTPUT:\n{run_res.stdout}\nERRORS:\n{run_res.stderr}"
     except subprocess.TimeoutExpired:
         return "EXECUTION TIMEOUT: Program ran for more than 10 seconds and was terminated."
@@ -62,7 +81,9 @@ def build_pyd_module(module_name: str, reasoning: str) -> str:
             capture_output=True, 
             text=True, 
             encoding="utf-8",
-            errors="replace"
+            errors="replace",
+            stdin=subprocess.DEVNULL,
+            close_fds=True
         )
         
         if result.returncode == 0:

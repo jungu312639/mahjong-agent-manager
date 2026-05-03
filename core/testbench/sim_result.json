@@ -1,0 +1,15 @@
+======================================
+[init report] shanten table finished！\n[tome] 579.077 ms
+======================================
+
+啟動 Agentic 壓力測試：共 1 場對局... (錄影模式: OFF)
+
+--- 測試報告 ---
+{
+  "games_played": 1,
+  "p0_wins": 0,
+  "win_rate_percentage": 0.0,
+  "avg_turns_to_win": 15.0,
+  "time_elapsed_seconds": 0.12,
+  "ms_per_game": 123.65
+}

@@ -8,8 +8,16 @@ import { CanvasRenderer } from 'echarts/renderers'
 import { LineChart } from 'echarts/charts'
 import { GridComponent, TooltipComponent } from 'echarts/components'
 import VChart from 'vue-echarts'
+import { marked } from 'marked'
+import DOMPurify from 'dompurify'
 
 echarts.use([CanvasRenderer, LineChart, GridComponent, TooltipComponent])
+
+// Helper for rendering markdown safely
+const renderMarkdown = (text) => {
+  if (!text) return ''
+  return DOMPurify.sanitize(marked.parse(text, { breaks: true }))
+}
 
 // UI State
 const userInput = ref('')
@@ -222,8 +230,8 @@ const toggleRun = () => {
                </span>
                <span v-if="log.type === 'tool_call'" class="text-[10px] bg-indigo-900 text-indigo-200 px-1.5 py-0.5 rounded border border-indigo-700">Tool Call</span>
             </div>
-            <div :class="['pl-4 border-l-2', log.type === 'tool_call' ? 'border-indigo-600 text-indigo-300' : log.type === 'error' ? 'border-red-600 text-red-400' : 'border-gray-700 text-gray-300']">
-               {{ log.content }}
+            <div :class="['pl-4 border-l-2 markdown-body', log.type === 'tool_call' ? 'border-indigo-600 text-indigo-300' : log.type === 'error' ? 'border-red-600 text-red-400' : 'border-gray-700 text-gray-300']"
+                 v-html="renderMarkdown(log.content)">
             </div>
          </div>
       </div>
@@ -271,5 +279,40 @@ const toggleRun = () => {
 .overflow-y-auto::-webkit-scrollbar-track,
 .overflow-auto::-webkit-scrollbar-track {
   background: #111827;
+}
+
+/* Markdown 樣式 */
+.markdown-body p {
+  margin-bottom: 0.5rem;
+}
+.markdown-body p:last-child {
+  margin-bottom: 0;
+}
+.markdown-body ul {
+  list-style-type: disc;
+  padding-left: 1.25rem;
+  margin-bottom: 0.5rem;
+}
+.markdown-body ol {
+  list-style-type: decimal;
+  padding-left: 1.25rem;
+  margin-bottom: 0.5rem;
+}
+.markdown-body strong {
+  font-weight: 700;
+  color: #e5e7eb;
+}
+.markdown-body h1, .markdown-body h2, .markdown-body h3 {
+  font-weight: 700;
+  color: #f3f4f6;
+  margin-top: 0.75rem;
+  margin-bottom: 0.25rem;
+}
+.markdown-body code {
+  background: #1f2937;
+  padding: 0.125rem 0.25rem;
+  border-radius: 0.25rem;
+  font-size: 0.85em;
+  color: #93c5fd;
 }
 </style>
