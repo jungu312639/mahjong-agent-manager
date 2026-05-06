@@ -6,7 +6,7 @@ load_dotenv()
 
 # --- 目錄配置 (Directory Configuration) ---
 # 後續若專案更迭，只需在這裡修改路徑即可
-AKAGI_BASE_PATH = r"C:\Users\superidol\Documents\projects\mahjong-agent-manager"
+AKAGI_BASE_PATH = os.path.dirname(os.path.abspath(__file__))
 TW_BOT_PATH = os.path.join(AKAGI_BASE_PATH, "core")
 TW_DATA_PATH = os.path.join(AKAGI_BASE_PATH, "tw_data")
 

@@ -9,7 +9,7 @@ from langchain_mcp_adapters.tools import load_mcp_tools
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
-from config import LLM_MODEL_NAME_PRO, LLM_TEMPERATURE
+from config import LLM_MODEL_NAME_PRO, LLM_MODEL_NAME_FLASH, LLM_TEMPERATURE
 from brain.prompts import SYSTEM_PROMPT_STRATEGIC, SYSTEM_PROMPT_CODING, SYSTEM_PROMPT_QA
 
 # ==============================================================
@@ -38,9 +38,16 @@ _mcp_transport = None
 _mcp_session = None
 agent_tools = []
 
-# LLM 實體初始化[cite: 11]
-llm = ChatGoogleGenerativeAI(
+# LLM 實體初始化
+llm_pro = ChatGoogleGenerativeAI(
     model=LLM_MODEL_NAME_PRO, 
+    temperature=LLM_TEMPERATURE, 
+    max_retries=10, 
+    timeout=60
+)
+
+llm_flash = ChatGoogleGenerativeAI(
+    model=LLM_MODEL_NAME_FLASH, 
     temperature=LLM_TEMPERATURE, 
     max_retries=10, 
     timeout=60
@@ -105,14 +112,14 @@ def _bind_agent_tools():
         return [t for t in agent_tools if t.name in names]
 
     # 與 prompts_2.py 的工具需求嚴格對齊
-    llm_strategic = llm.bind_tools(get_tools(["tool_retrieve_context", "tool_commit_experience"]))
-    llm_coding = llm.bind_tools(get_tools(["read_cpp_code", "edit_code_segment"]))
-    llm_qa = llm.bind_tools(get_tools(["build_pyd_module", "run_mahjong_simulation", "tool_commit_experience"]))
+    llm_strategic = llm_pro.bind_tools(get_tools(["tool_retrieve_context", "tool_commit_experience"]))
+    llm_coding = llm_pro.bind_tools(get_tools(["read_cpp_code", "edit_code_segment"]))
+    llm_qa = llm_flash.bind_tools(get_tools(["build_pyd_module", "run_mahjong_simulation", "tool_commit_experience"]))
 
 # 初始空綁定，待 initialize_tools 執行後會更新
-llm_strategic = llm
-llm_coding = llm
-llm_qa = llm
+llm_strategic = llm_pro
+llm_coding = llm_pro
+llm_qa = llm_flash
 
 # ==============================================================
 # 3. Agent 思考邏輯定義[cite: 11]
