@@ -36,3 +36,7 @@ docs/lesson_learned/*.md
 # 模擬器錄影與實驗數據
 core/testbench/game_replay.json
 scratch/
+
+# 模型名稱暫存
+model_name.py
+
